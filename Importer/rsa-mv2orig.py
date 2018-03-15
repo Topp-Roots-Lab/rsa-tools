@@ -124,6 +124,7 @@ import stat
 import pwd
 import grp
 import shutil
+import argparse
 
 
 # Constants     #------------------------------------------------{{{
@@ -170,6 +171,18 @@ nr_errors = 0       # Number of errors
 
 allow_existing = False  # secret flag to allow append to existing directories
 
+skip_permissions = False  # skip checking user permissions and setting file masks
+
+non_interactive = False  # proceed without prompting for confirmation
+
+delete_originals = False  # delete files in source directory as they are moved
+
+organism_file = None  # tab-separated file that contains the list of valid organism codes and names
+
+moved_imagesets_file = None  # file that will be filled with the metadata for each successfully-moved imageset
+
+allowed_organisms = dict()
+
 # the list of the valid sizes of the images sets
 number_img_sets=[1,2,3,4,5,6,8,9,10,12,15,18,20,24,30,36,40,45,60,72,90,120,180,360]
 
@@ -182,15 +195,17 @@ def makeRSAdirs(path):  #----------------------------------------{{{
     """
     global rsa_uid
     global rsa_gid
+    global skip_permissions
     
     (parent,simple) = os.path.split(path)
     if not os.path.exists(path):
         makeRSAdirs(parent)
         os.mkdir(path,02750)        # ??? os.mkdir applies umask to mode
-        # On XFS filesystem, chown/chgrp might reset 's' bit.
-        # So, the chown/chgrp comes first
-        os.chown(path,rsa_uid,rsa_gid)
-        os.chmod(path,02750)        # This should work...
+        if not skip_permissions:
+            # On XFS filesystem, chown/chgrp might reset 's' bit.
+            # So, the chown/chgrp comes first
+            os.chown(path,rsa_uid,rsa_gid)
+            os.chmod(path,02750)        # This should work...
     return
 #................................................................}}}
 
@@ -205,7 +220,17 @@ def moveFiles():    #--------------------------------------------{{{
     global moved_img_files
 
     global nr_errors
-    
+    global skip_permissions
+    global delete_originals
+    global moved_imagesets_file
+
+    if moved_imagesets_file:
+        try:
+            imagesets_file_handle = open(moved_imagesets_file, "w")
+        except:
+            print "ERROR: cannot open file " + moved_imagesets_file + " for writing"
+            sys.exit(1)
+
     for key in to_move.keys():
         (species, EXP, plant, day, itype, filelist) = to_move[key]
         print "  Moving image group "+os.path.join(species,EXP,plant,day,itype)
@@ -216,17 +241,26 @@ def moveFiles():    #--------------------------------------------{{{
             for fn in filelist:
                 orig_image_path = os.path.join(src_dir,fn)
                 new_image_path = os.path.join(group_dir,fn)
-                shutil.move(orig_image_path,new_image_path)
-                # On XFS filesystem, chown/chgrp might reset 's' bit.
-                # So, the chown/chgrp comes first
-                os.chown(new_image_path,rsa_uid,rsa_gid)                
-                os.chmod(new_image_path,0640) 
+                if delete_originals:
+                    shutil.move(orig_image_path,new_image_path)
+                else:
+                    shutil.copy2(orig_image_path,new_image_path)
+                if not skip_permissions:
+                    # On XFS filesystem, chown/chgrp might reset 's' bit.
+                    # So, the chown/chgrp comes first
+                    os.chown(new_image_path,rsa_uid,rsa_gid)                
+                    os.chmod(new_image_path,0640) 
                 moved_img_files += 1
+            if moved_imagesets_file:
+                imagesets_file_handle.write(species + "\t" + EXP + "\t" + plant + "\t" + day + "\t" + itype + '\n')
         except:
             print "ERROR: cannot move group "+os.path.join(species,EXP,plant,day,itype)
             (exc_type,exc_value,exc_traceback) = sys.exc_info()
             print "      ",exc_value
             nr_errors += 1
+
+    if moved_imagesets_file:
+        imagesets_file_handle.close()
 #................................................................}}} 
 
 def checkSrcSets():    #--------------------------------------------{{{
@@ -329,7 +363,26 @@ def parseDirs():    #--------------------------------------------{{{
     global nr_errors
     global allow_existing
     global nr_wrong_owner
+    global delete_originals
+    global organism_file
+    global allowed_organisms
     
+    try:
+        organism_file_handle = open(organism_file, "r")
+    except:
+        print "ERROR: cannot open file " + organism_file + " for reading"
+        sys.exit(1)
+
+    try:
+        for line in organism_file_handle:
+            (organism_code, organism_name) = line.strip().split()
+            allowed_organisms[organism_code] = organism_name
+    except:
+        print "ERROR: organisms in " + organism_file + " are not formatted correctly"
+        sys.exit(1)
+    finally:
+        organism_file_handle.close()
+
     # On this step, the only possible error is inability to read source dir
     # (os.path.exists(..) just returns False if permissions denied)
     try:
@@ -345,9 +398,12 @@ def parseDirs():    #--------------------------------------------{{{
         if os.path.isfile( os.path.join(src_dir,fn) ):
             (valid, key, fn, species, EXP, plant, day, itype) = parseFn(fn)
             if valid:
-                # Check ownership of the file
-                st_info = os.stat( os.path.join(src_dir,fn) )
-                if not ( st_info[stat.ST_UID]==rsa_uid and st_info[stat.ST_GID]==rsa_gid ):
+                if delete_originals:
+                    file_mode = os.W_OK
+                else:
+                    file_mode = os.R_OK
+                # Check access to file
+                if not os.access(os.path.join(src_dir,fn), file_mode):
                     nr_wrong_owner += 1
                 # First, check whether the group already exists in dest
                 if key in existing_groups:
@@ -362,7 +418,7 @@ def parseDirs():    #--------------------------------------------{{{
                         # New group: check whether it exists in destination
                         dest_group_dir = os.path.join(dest_dir,species,EXP,plant,day,itype)
                         if os.path.exists(dest_group_dir) and not allow_existing:
-                            print "ERROR: imgage set already exists:",dest_group_dir
+                            print "ERROR: image set already exists:",dest_group_dir
                             existing_groups.append(key)
                         else:
                             to_move[key] = (species, EXP, plant, day, itype, [ fn ])
@@ -416,20 +472,11 @@ def parseFn(fn):  #----------------------------------------------{{{
     rotation    = fn[rot_idx+1:typ_idx]   # excluding starting '_'
     itype       = fn[typ_idx+1:       ]   # excluding starting '.'
 
-    # Check species -- should be in the list below
+    # Check species
     # (here is the only place where we have to translate)
-    if   species_cd=='Zm':  species = 'corn'
-    elif species_cd=='Os':  species = 'rice'
-    elif species_cd=='Fk':  species = 'model' 
-    elif species_cd=='Ta':  species = 'wheat'
-    elif species_cd=='Gm':  species = 'millet'
-    elif species_cd=='Sb':  species = 'sorghum'
-    elif species_cd=='Bd':  species = 'brome'
-    elif species_cd=='Ms':  species = 'alfalfa'
-    elif species_cd=='Sv':  species = 'Sviridis'
-    elif species_cd=='Si':  species = 'Sitalica'
+    if species_cd in allowed_organisms:
+        species = allowed_organisms[species_cd]
     else:
-        # Currently, only the above species are possible
         return err_result
         
     # Check experiment type -- should consist of 3 uppercase letters
@@ -458,54 +505,40 @@ def parseFn(fn):  #----------------------------------------------{{{
 #................................................................}}}
 
 
-def printUsage():   #--------------------------------------------{{{
-    print 'Usage:'
-    print '    rsa-mv2orig [source-dir]'
-    print
-    print "If 'source-dir' is omitted, source is '/home/data/rsa/to_sort'."
-    print
-#................................................................}}}
 
 def parseCmdLine(): #--------------------------------------------{{{
     """Parse command line.
-    There is no need to use OptionParser as we have very simple usage.
-    In addition, OptionParser formats help in inconvenient way.
-    
     Sets global variable 'src_dir' and 'dest_dir'.
     """
-    global dest_dir
     global src_dir
+    global dest_dir
+    global organism_file
     global allow_existing
+    global skip_permissions
+    global non_interactive
+    global delete_originals
+    global moved_imagesets_file
     
-    dest_dir = DIR_DEST
-    
-    src_dir = DIR_SRC_DFLT
-    if len(sys.argv)==1:
-        # No command line arguments; use defaults
-        pass
-    elif len(sys.argv)==2:
-        arg1 = sys.argv[1]
-        arg1_lc = arg1.lower()
-        if arg1_lc=='-h' or arg1_lc=='--help':
-            printUsage()
-            sys.exit(0)
-        else:
-            src_dir = arg1
-    # Secret argument
-    elif len(sys.argv)==3 and sys.argv[2]=='--allow-existing':
-        src_dir = sys.argv[1]
-        allow_existing = True
-    # The following case is only for testing -- it should be commented in
-    # production release
-#    elif len(sys.argv)==3:
-#        src_dir = sys.argv[1]
-#        dest_dir = sys.argv[2]
-    else:
-        print 'ERROR: Too many parameters in command line.'    
-        print
-        printUsage()
-        sys.exit(1)
-    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("organism_file", help="tab-separated file that contains the list of valid organism codes and names")
+    parser.add_argument("source_dir", nargs="?", default=DIR_SRC_DFLT, help="default: " + DIR_SRC_DFLT)
+    parser.add_argument("destination_dir", nargs="?", default=DIR_DEST, help="default: " + DIR_DEST)
+    parser.add_argument("--allow-existing", help="allow append to existing directories", action="store_true")
+    parser.add_argument("--skip-permissions", help="skip checking user permissions and setting file masks", action="store_true")
+    parser.add_argument("--non-interactive", help="proceed without prompting for confirmation", action="store_true")
+    parser.add_argument("--delete-originals", help="delete files in source directory as they are moved", action="store_true")
+    parser.add_argument("--moved-imagesets-file", help="file that will be filled with the metadata for each successfully-moved imageset")
+    args = parser.parse_args()
+
+    src_dir = args.source_dir
+    dest_dir = args.destination_dir
+    organism_file = args.organism_file
+    allow_existing = args.allow_existing
+    skip_permissions = args.skip_permissions
+    non_interactive = args.non_interactive
+    delete_originals = args.delete_originals
+    moved_imagesets_file = args.moved_imagesets_file
+
     return
 #................................................................}}}
 
@@ -545,6 +578,10 @@ def testUser():    #--------------------------------------------{{{
     """
     global rsa_uid
     global rsa_gid
+    global skip_permissions
+
+    if skip_permissions:
+        return
 
     curr_username = os.getenv('USER')
     
@@ -568,7 +605,6 @@ def testUser():    #--------------------------------------------{{{
         print "FATAL ERROR: user '%s' is not a member of '%s'." % (USR_RSA_NAME,GR_RSA_NAME)
         print
         sys.exit(1)
-#        pass
     
     if curr_username!=USR_RSA_NAME and curr_username!='root':
         print "ERROR: this script can be executed by user '%s' only." % USR_RSA_NAME
@@ -591,17 +627,21 @@ def main():     #------------------------------------------------{{{
     global moved_img_files
     global nr_errors
     global nr_wrong_owner
+    global skip_permissions
 
     print
-    print "=== Moving original images to",DIR_DEST,"==="
+    print "=== Moving original images to original_images directory ==="
     print
-    
-    testUser()      # this sets 'rsa_uid' and 'rsa_gid'
     
     parseCmdLine()  # this sets 'src_dir' and 'dest_dir'
     print "Source directory:     ",src_dir
     print "Destination directory:",dest_dir
     print
+
+    if os.name == 'nt':
+        skip_permissions = True
+    
+    testUser()      # this sets 'rsa_uid' and 'rsa_gid'
     
     testDirs()      # this exits if error
      
@@ -613,9 +653,8 @@ def main():     #------------------------------------------------{{{
     
     if nr_wrong_owner > 0 and os.getenv('USER')!='root':
         print
-        print "ERROR: The source directory contains %d files with wrong ownership." % nr_wrong_owner
+        print "ERROR: The source directory contains %d files that cannot be accessed." % nr_wrong_owner
         print "Either correct this problem, or run this script with root privileges."
-        print "(Remember that you need root privileges to change ownership.)"
         print
         sys.exit(0)
     
@@ -626,7 +665,11 @@ def main():     #------------------------------------------------{{{
         print str(nr_img_groups)+" image groups ("+str(nr_img_files)+" files) will be moved."
         print
         
-        answer = raw_input('Continue (yes/no)? ')
+        if non_interactive:
+            answer = "yes"
+        else:
+            answer = raw_input('Continue (yes/no)? ')
+
         if not (answer.lower()=='y' or answer.lower()=='yes'):
             print 'Operation aborted.'
         else:
