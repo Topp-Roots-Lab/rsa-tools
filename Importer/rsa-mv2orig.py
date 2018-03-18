@@ -121,10 +121,11 @@ added the following checks:    -- Vladimir Popov --- May 8, 2013
 import sys
 import os
 import stat
-import pwd
-import grp
 import shutil
 import argparse
+if os.name != 'nt':
+	import pwd
+	import grp
 
 
 # Constants     #------------------------------------------------{{{
