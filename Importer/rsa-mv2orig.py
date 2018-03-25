@@ -584,7 +584,7 @@ def testUser():    #--------------------------------------------{{{
     if skip_permissions:
         return
 
-    curr_username = os.getenv('USER')
+    curr_username = pwd.getpwuid(os.geteuid()).pw_name
     
     try:
         rootarch_info = grp.getgrnam(GR_RSA_NAME)
@@ -641,6 +641,8 @@ def main():     #------------------------------------------------{{{
 
     if os.name == 'nt':
         skip_permissions = True
+    else:
+        os.setreuid(os.geteuid(), -1)
     
     testUser()      # this sets 'rsa_uid' and 'rsa_gid'
     
