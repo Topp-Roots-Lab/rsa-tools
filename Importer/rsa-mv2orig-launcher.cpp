@@ -1,5 +1,6 @@
 // This program will safely run rsa-mv2orig.py as the privileged (setuid) user.
-// Make sure that the owner of this program is the privileged user. Then, set the setuid bit on this program using "chmod".
+// Make sure that the owner of this program is the privileged user. Then, set
+// the setuid bit on this program using "chmod".
 
 #include <iostream>
 #include <cstdlib>

@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+# Python 2.7 compatible
 
 """
 script name: rsa-renameorig
