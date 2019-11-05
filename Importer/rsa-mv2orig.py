@@ -631,11 +631,12 @@ def main():     #------------------------------------------------{{{
     global nr_wrong_owner
     global skip_permissions
 
+    parseCmdLine()  # this sets 'src_dir' and 'dest_dir'
+
     print
     print "=== Moving original images to original_images directory ==="
     print
-    
-    parseCmdLine()  # this sets 'src_dir' and 'dest_dir'
+
     print "Source directory:     ",src_dir
     print "Destination directory:",dest_dir
     print

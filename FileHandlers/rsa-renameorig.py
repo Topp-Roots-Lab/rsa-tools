@@ -68,11 +68,11 @@ def main():
     global parent_dir
     global new_dir
 
+    parseCmdLine()
+
     print
     print "=== Renaming directory under original_images directory ==="
     print
-
-    parseCmdLine()
 
     print "Existing directory: ",existing_dir
     print "New name:           ",new_name
