@@ -16,13 +16,13 @@ main(int argc, char *argv[])
   const passwd *password = getpwuid(euid);
 
   char ** const new_argv = new char *[argc];
-  new_argv[0] = (char * const) "python";
-  new_argv[1] = (char * const) "/opt/local/bin/file-handlers/rsa-renameorig.py";
+  new_argv[0] = (char * const) "python2";
+  new_argv[1] = (char * const) "/opt/rsa-gia/file-handlers/rsa-renameorig.py";
   for (int i = 1; i <= argc; ++i)
   {
     new_argv[i + 1] = argv[i];
   }
   
   cout << "Elevated Launcher: Running rsa-renameorig.py with " << password->pw_name << " permissions." << endl;
-  execv("/usr/bin/python", new_argv);
+  execv("/usr/bin/python2", new_argv);
 }
