@@ -16,7 +16,12 @@ main(int argc, char *argv[])
   const uid_t euid = geteuid();
   const passwd *password = getpwuid(euid);
 
-  char ** const new_argv = new char *[argc];
+  // NOTE(tparker): During the upgrade of Viper from CentOS 6, I encountered
+  // malloc(): memory corruption errors when trying to run this code. I think
+  // it's because the size of the new arguments array should be one more because
+  // the arguments appear to be shifted right by 1 after setting the first and
+  // second arguments to the script whose permissions it's elevating
+  char ** const new_argv = new char *[argc + sizeof(char*)];
   new_argv[0] = (char * const) "python2";
   new_argv[1] = (char * const) "/opt/rsa-gia/importer/rsa-mv2orig.py";
   for (int i = 1; i <= argc; ++i)
