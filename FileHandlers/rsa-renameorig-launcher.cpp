@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
   // second arguments to the script whose permissions it's elevating
   char ** const new_argv = new char *[argc + sizeof(char*)];
   new_argv[0] = (char * const) "python2";
-  new_argv[1] = (char * const) "/opt/rsa-gia/file-handlers/rsa-renameorig.py";
+  new_argv[1] = (char * const) "/opt/rsa-gia/bin/file-handlers/rsa-renameorig.py";
   for (int i = 1; i <= argc; ++i)
   {
     new_argv[i + 1] = argv[i];
