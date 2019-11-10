@@ -1,4 +1,4 @@
-#!/usr/bin/python -W ignore::DeprecationWarning
+#!/usr/bin/python2 -W ignore::DeprecationWarning
 
 # Paul Zurek, December 9, 2011
 #
@@ -57,7 +57,7 @@ template_name = sys.argv[5] #which template was used to generate the giaroot_2d
 #example ./all_qc_folder.py /data/rsa/processed_images/corn/NAM/p00039/d06/saved/giaroot_2d/prz_2011-05-10_16-56-21 4 ./ 101011000 [template_name]
 
 # path to the resource
-FONT = "/home/twalk/courbd.ttf"
+FONT = "/opt/rsa-gia/bin/gia-programs/quality-control/resources/courbd.ttf"
 
 status_code = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
@@ -70,8 +70,6 @@ print "threshold image: " + packet_t[0]
 
 image = open(packet_t[0], "r", 0)
 img = Image.open(image)
-#img.show()
-#img = Image.open(packet_t[0])
 plant_id = re.split("_", os.path.basename(packet_t[0]))[0]
 run_id = os.path.split(os.path.normpath(sys.argv[1]))[-1]
 
@@ -90,11 +88,6 @@ accum_c = Image.new("RGB",(w_sng*imgWide, h_sng*imgHigh))
 accum_g = Image.new("RGB",(w_sng*imgWide, h_sng*imgHigh))
 accum_t = Image.new("RGB",(w_sng*imgWide, h_sng*imgHigh))
 accum_s = Image.new("RGB",(w_sng*imgWide, h_sng*imgHigh))
-#accum_c = Image.new("RGB",(w_sng*8, h_sng*5))
-#accum_g = Image.new("RGB",(w_sng*8, h_sng*5))
-#accum_t = Image.new("RGB",(w_sng*8, h_sng*5))
-#accum_s = Image.new("RGB",(w_sng*8, h_sng*5))
-#----------------------------------------------
 
 def make_coords(w, h, xl ,yl):
     list = []
@@ -106,8 +99,6 @@ def make_coords(w, h, xl ,yl):
     return list
 
 def add_watermark(img, ctid):
-    #font = ImageFont.truetype("./courbd.ttf",25)
-    # path
     path = FONT
     font = ImageFont.truetype(path,25)
 
@@ -135,10 +126,6 @@ def sort_packet(packet):
     return packet
 
 def make_overlay(pix_1, pix_2, width, height):
-    #print "pix_1"
-    #print pix_1
-    #print "pix_2"
-    #print pix_2
     blank = Image.new("RGB",(width, height))
     total = blank.load()
     ct = 0
@@ -232,16 +219,6 @@ if do_which[4] == '1':
         accum_c = make_mosaic(w_sng, h_sng, accum_c, copack, 1)
         status_code[0] = 1
     w, h = accum_t.size
-
-    #print "accum_t"
-    #print accum_t
-    #print "accum_c"
-    #print accum_c
-    #print "accum_t.load()"
-    #print accum_t.load()
-    #print "accum_c.load()"
-    #print accum_c.load()
-
 
     overlay_composite = make_overlay(accum_t.load(), accum_c.load(), w, h)
     save_me(overlay_composite, folder_out, plant_id, run_id, "thresholded_on_cropped", scale, template_name)
