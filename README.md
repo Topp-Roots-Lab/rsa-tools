@@ -8,6 +8,16 @@ Due to user and group restrictions, it's necessary to elevate the priveleges and
 
 This script renames a directory in the original_images folder.
 
+## Analysis
+
+Contains the binaries and scripts for each component run by [RSA-GiA](https://github.com/Topp-Roots-Lab/rsa-gui).
+
+These include,
+* GiaRoots (a.k.a., Gia2D)
+* Reconstruction & Skeleton (RootworkPers)
+* File management scripts
+* Quality control scripts
+
 ## Importer
 
 This script creates the directory subtree in the original_images folder, which corresponds the names of the files located in some directory. It's primary function is to move image sets into a designated folder for the next steps in processing.
