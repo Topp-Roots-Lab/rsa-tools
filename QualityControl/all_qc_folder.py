@@ -108,12 +108,14 @@ def add_watermark(img, ctid):
     return img
 
 def add_to_canvas(w, h, item, indx, accum, ctid):
-    img = Image.open(item[indx]).convert("RGB")
-    img = img.resize((w,h))
-    coor = list(item[0])
-    img_num = int(re.split("_", os.path.basename(item[1]))[1])
-    img = add_watermark(img, img_num)
-    accum.paste(img,(coor[0], coor[2]))
+    fname = item[indx]
+    with open(fname) as ifp:
+        img = Image.open(ifp).convert("RGB")
+        img = img.resize((w,h))
+        coor = list(item[0])
+        img_num = int(re.split("_", os.path.basename(item[1]))[1])
+        img = add_watermark(img, img_num)
+        accum.paste(img,(coor[0], coor[2]))
     return accum
 
 def sort_packet(packet):
